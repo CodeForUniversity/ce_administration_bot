@@ -5,6 +5,7 @@ from Models.vote import Vote
 from Models.UserPunishment import UserPunishment
 
 VOTE_THRESHOLD = 20
+VOTE_PERCANTAGE = 60
 SESSION_LIFETIME = timedelta(hours=24)
 
 class VoteService:
@@ -54,7 +55,7 @@ class VoteService:
         yes_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="yes").count()
         no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
 
-        if yes_count - no_count >= VOTE_THRESHOLD:
+        if ((yes_count / (yes_count + no_count)) >= (VOTE_PERCANTAGE/100)) and ((yes_count - no_count) >= VOTE_THRESHOLD):
             session.status = "completed"
             self.db.commit()
             return session, "completed"
