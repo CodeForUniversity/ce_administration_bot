@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from Utils.db import SessionLocal
 from Models.vote_session import VoteSession
 from Models.vote import Vote
+from Models.UserPunishment import UserPunishment
 
 VOTE_THRESHOLD = 20
 SESSION_LIFETIME = timedelta(hours=24)
@@ -16,7 +17,6 @@ class VoteService:
             .filter_by(chat_id=chat_id, target_user_id=target_user_id, status="open")
             .first()
         )
-
         if existing:
             return existing, False
 
@@ -26,7 +26,7 @@ class VoteService:
         self.db.refresh(session)
         return session, True
 
-    def cast_vote(self, session_id, voter_id):
+    def cast_vote(self, session_id, voter_id, target_id, vote_type: str):
         session = self.db.query(VoteSession).filter_by(id=session_id).first()
         if not session:
             return None, "no_session"
@@ -39,25 +39,44 @@ class VoteService:
             self.db.commit()
             return None, "expired"
 
-        # Check no duplication
         already = (
             self.db.query(Vote)
             .filter_by(session_id=session_id, voter_id=voter_id)
             .first()
         )
-
         if already:
             return session, "duplicate"
 
-        vote = Vote(session_id=session_id, voter_id=voter_id)
+        vote = Vote(session_id=session_id, voter_id=voter_id, target_id=target_id, vote_type=vote_type)
         self.db.add(vote)
         self.db.commit()
 
-        # Check threshold
-        count = self.db.query(Vote).filter_by(session_id=session_id).count()
-        if count >= VOTE_THRESHOLD:
+        yes_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="yes").count()
+        no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
+
+        if yes_count - no_count >= VOTE_THRESHOLD:
             session.status = "completed"
             self.db.commit()
             return session, "completed"
 
         return session, "voted"
+
+    def compute_ban_until(self):
+        now = datetime.utcnow()
+        midnight_tomorrow = datetime(year=now.year, month=now.month, day=now.day) + timedelta(days=1)
+        return now + timedelta(days=1) + (midnight_tomorrow - now)
+
+    def mute_user(self, target_user_id, chat_id):
+        until = self.compute_ban_until()
+
+        punish = self.db.query(UserPunishment).filter_by(user_id=target_user_id, chat_id=chat_id).first()
+        if not punish:
+            punish = UserPunishment(user_id=target_user_id, chat_id=chat_id, ban_count=1, is_muted=True, mute_until=until)
+            self.db.add(punish)
+        else:
+            punish.ban_count += 1
+            punish.is_muted = True
+            punish.mute_until = until
+        self.db.commit()
+
+        return until
