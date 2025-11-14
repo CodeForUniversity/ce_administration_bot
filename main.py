@@ -1,5 +1,6 @@
 from telegram.ext import ApplicationBuilder
 from dispatcher import setup
+from Models.UserPunishment import UserPunishment
 from Models.base import Base
 from Utils.db import engine
 
