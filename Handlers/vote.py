@@ -1,23 +1,18 @@
-from math import trunc
+from telegram import Update, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ContextTypes, CallbackQueryHandler
 
-from telegram import Update, ChatPermissions
-from telegram.ext import ContextTypes
 from Services.vote_service import VoteService
 from Models.vote_session import VoteSession
 vote_service = VoteService()
 
 async def vote_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        return await update.message.reply_text("Usage: /vote_ban @username")
-
-    username = context.args[0]
     chat_id = update.effective_chat.id
 
     try:
-        user = await context.bot.get_chat(username)
+        user = update.message.reply_to_message.from_user
     except:
         return await update.message.reply_text("User not found.")
-
+    
     session, created = vote_service.start_session(chat_id, user.id)
 
     if not created:
@@ -25,14 +20,28 @@ async def vote_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "A vote for this user is already open."
         )
 
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("YES ✅", callback_data="vote_yes"),
+            InlineKeyboardButton("NO ❌", callback_data="vote_no")
+        ]
+    ])
+
     await update.message.reply_text(
-        f"Voting started for {username}. Use /yes to vote."
+        f"Voting started for {user.first_name}. Click a button to vote.",
+        reply_markup=keyboard
     )
 
 async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    voter_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    vote_type = "yes" if update.message.text.lower() == "/yes" else "no"
+    query = update.callback_query
+    print("Callback data:", query.data)
+    await query.answer()
+
+    voter_id = query.from_user.id
+    chat_id = query.message.chat.id
+
+
+    vote_type = "yes" if query.data == "vote_yes" else "no"
 
     session = (
         vote_service.db.query(VoteSession)
@@ -42,16 +51,16 @@ async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if not session:
-        return await update.message.reply_text("No active voting session.")
+        return await query.edit_message_text("No active voting session.")
 
     session, status = vote_service.cast_vote(session.id, voter_id, session.target_user_id, vote_type)
 
     if status == "duplicate":
-        return await update.message.reply_text("You already voted.")
+        return await query.answer("You already voted.", show_alert=True)
     if status == "expired":
-        return await update.message.reply_text("The session expired.")
+        return await query.edit_message_text("The voting session expired.")
     if status == "voted":
-        return await update.message.reply_text("Vote recorded.")
+        return await query.answer("Vote recorded.", show_alert=False)
     if status == "completed":
         until = vote_service.mute_user(session.target_user_id, chat_id)
         try:
@@ -62,8 +71,8 @@ async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 until_date=until,
             )
         except Exception as e:
-            return await update.message.reply_text(f"Error muting: {e}")
+            return await query.edit_message_text(f"Error muting: {e}")
 
-        return await update.message.reply_text(
+        return await query.edit_message_text(
             "User banned. Vote difference reached threshold."
         )
