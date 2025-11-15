@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
 from Utils.db import SessionLocal
 from Models.vote_session import VoteSession
 from Models.vote import Vote
 from Models.UserPunishment import UserPunishment
+from datetime import datetime, timedelta, time, timezone
+import zoneinfo
 
 VOTE_THRESHOLD = 20
 VOTE_PERCENTAGE = 60
@@ -55,7 +56,7 @@ class VoteService:
         yes_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="yes").count()
         no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
 
-        if ((yes_count / (yes_count + no_count)) >= (VOTE_PERCENTAGE/100)) and ((yes_count - no_count) >= VOTE_THRESHOLD):
+        if (yes_count - no_count) >= VOTE_THRESHOLD:
             session.status = "completed"
             self.db.commit()
             return session, "completed"
@@ -63,9 +64,14 @@ class VoteService:
         return session, "voted"
 
     def compute_ban_until(self):
-        now = datetime.utcnow()
-        midnight_tomorrow = datetime(year=now.year, month=now.month, day=now.day) + timedelta(days=1)
-        return now + timedelta(days=1) + (midnight_tomorrow - now)
+        IRAN = zoneinfo.ZoneInfo("Asia/Tehran")
+
+        now_ir = datetime.now(IRAN)
+        tomorrow_date = now_ir.date() + timedelta(days=1)
+
+        ban_ir = datetime.combine(tomorrow_date, time(3, 30), tzinfo=IRAN)
+
+        return ban_ir.astimezone(timezone.utc)
 
     def mute_user(self, target_user_id, chat_id):
         until = self.compute_ban_until()
