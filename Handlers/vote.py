@@ -1,5 +1,5 @@
 from telegram import Update, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ContextTypes, CallbackQueryHandler
+from telegram.ext import ContextTypes
 
 from Services.vote_service import VoteService
 from Models.vote_session import VoteSession
@@ -22,8 +22,8 @@ async def vote_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("YES ✅", callback_data="vote_yes"),
-            InlineKeyboardButton("NO ❌", callback_data="vote_no")
+            InlineKeyboardButton("YES ✅", callback_data=f"{session.id}_yes"),
+            InlineKeyboardButton("NO ❌", callback_data=f"{session.id}_no")
         ]
     ])
 
@@ -31,21 +31,22 @@ async def vote_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Voting started for {user.first_name}. Click a button to vote.",
         reply_markup=keyboard
     )
+    return None
 
 async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     print("Callback data:", query.data)
     await query.answer()
-
     voter_id = query.from_user.id
     chat_id = query.message.chat.id
 
 
-    vote_type = "yes" if query.data == "vote_yes" else "no"
+    session_id = query.data.split("_")[0]
+    vote_type = query.data.split("_")[1]
 
     session = (
         vote_service.db.query(VoteSession)
-        .filter_by(chat_id=chat_id, status="open")
+        .filter_by(chat_id=chat_id, status="open", id=session_id)
         .order_by(VoteSession.start_time.desc())
         .first()
     )
@@ -76,3 +77,4 @@ async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await query.edit_message_text(
             "User banned. Vote difference reached threshold."
         )
+    return None

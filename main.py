@@ -3,7 +3,7 @@ from dispatcher import setup
 from Models.base import Base
 from Utils.db import engine
 
-TOKEN = "YOUR_TOKEN_HERE"
+TOKEN = "8576659887:AAEY3eif9ycPKMrqYNdJ9pW_hL3T6Vzwz78"
 
 def init_db():
     Base.metadata.create_all(bind=engine)
