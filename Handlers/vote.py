@@ -5,7 +5,7 @@ from Services.vote_service import VoteService
 from Models.vote_session import VoteSession
 vote_service = VoteService()
 
-async def vote_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
     try:
@@ -75,6 +75,6 @@ async def vote_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await query.edit_message_text(f"Error muting: {e}")
 
         return await query.edit_message_text(
-            "User banned. Vote difference reached threshold."
+            f"User muted til {until}."
         )
     return None
