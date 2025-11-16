@@ -29,10 +29,10 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("NO ❌", callback_data=f"{session.id}_no")
         ]
     ])
-
     await update.message.reply_text(
-        f"Voting started for {user.first_name}. Click a button to vote.",
-        reply_markup=keyboard
+        f"Voting started for {user.mention_html()}. Click a button to vote.",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
     return None
 
@@ -96,11 +96,4 @@ async def update_vote_message(query, session):
         ]
     ])
 
-    new_text = (
-        f"Voting started for user.\n\n"
-        f"YES: {yes_count}\n"
-        f"NO:  {no_count}"
-    )
-
-    await query.edit_message_text(new_text, reply_markup=keyboard)
-
+    await query.edit_message_reply_markup(reply_markup=keyboard)
