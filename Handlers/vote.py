@@ -11,15 +11,22 @@ async def mute(update, context):
 
     chat_id = update.effective_chat.id
     target = update.message.reply_to_message.from_user
+    initiator = update.effective_user
 
-    session, status = actions.start_vote(chat_id, target.id)
+    session, status = actions.start_vote(
+        chat_id=chat_id,
+        target_user_id=target.id,
+        initiator_user_id=initiator.id,
+        is_target_bot=target.is_bot
+    )
+
     handler = STATUS_HANDLERS.get(status)
 
     if handler:
         await handler(update, session)
     else:
         await update.message.reply_text("Internal error.")
-    return None
+
 
 
 async def vote_handler(update, context):

@@ -14,7 +14,20 @@ class VoteService:
         self.db = SessionLocal()
         self.IRAN_TZ = zoneinfo.ZoneInfo("Asia/Tehran")
 
-    def start_session(self, chat_id, target_user_id):
+    def start_session(self, chat_id: int, target_user_id: int, initiator_user_id: int, is_target_bot: bool):
+        if is_target_bot:
+            return None, "target_is_bot"
+
+        one_week_ago = datetime.utcnow() - timedelta(days=7)
+        recent_session = (
+            self.db.query(VoteSession)
+            .filter_by(chat_id=chat_id, initiator_user_id=initiator_user_id)
+            .filter(VoteSession.start_time >= one_week_ago)
+            .first()
+        )
+        if recent_session:
+            return None, "too_soon"
+
         existing = (
             self.db.query(VoteSession)
             .filter_by(chat_id=chat_id, target_user_id=target_user_id, status="open")
@@ -23,7 +36,11 @@ class VoteService:
         if existing:
             return existing, "already_open"
 
-        session = VoteSession(chat_id=chat_id, target_user_id=target_user_id)
+        session = VoteSession(
+            chat_id=chat_id,
+            target_user_id=target_user_id,
+            initiator_user_id=initiator_user_id
+        )
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)

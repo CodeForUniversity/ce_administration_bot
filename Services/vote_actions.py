@@ -15,8 +15,13 @@ class VoteActions:
             ]
         ])
 
-    def start_vote(self, chat_id, target_user_id):
-        return self.service.start_session(chat_id, target_user_id)
+    def start_vote(self, chat_id, target_user_id, initiator_user_id, is_target_bot):
+        return self.service.start_session(
+            chat_id=chat_id,
+            target_user_id=target_user_id,
+            initiator_user_id=initiator_user_id,
+            is_target_bot=is_target_bot
+        )
 
     def cast_vote(self, session_id, voter_id, vote_type):
         return self.service.cast_vote(session_id, voter_id, vote_type)

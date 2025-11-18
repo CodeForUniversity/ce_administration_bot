@@ -10,6 +10,7 @@ class VoteSession(Base):
     id = Column(Integer, primary_key=True)
     chat_id = Column(Integer, nullable=False)
     target_user_id = Column(Integer, nullable=False)
+    initiator_user_id = Column(Integer, nullable=False)
     status = Column(String, default="open")
     start_time = Column(DateTime, default=datetime.utcnow)
     end_time = Column(DateTime, nullable=True)
