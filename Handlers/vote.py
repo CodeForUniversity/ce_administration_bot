@@ -1,28 +1,24 @@
 from Services.strategies import VOTE_STRATEGIES
 from Services.vote_actions import VoteActions
+from Services.strategies.session.session_status_handlers import STATUS_HANDLERS
 
 actions = VoteActions()
 
 
 async def mute(update, context):
     if not update.message.reply_to_message:
-        return await update.message.reply_text("Reply to a message.")
+        return await update.message.reply_text("Reply to a user's message to start a vote.")
 
     chat_id = update.effective_chat.id
     target = update.message.reply_to_message.from_user
 
     session, status = actions.start_vote(chat_id, target.id)
+    handler = STATUS_HANDLERS.get(status)
 
-    if not status:
-        return await update.message.reply_text("A vote is already open for this user.")
-
-    keyboard = actions.build_keyboard(session.id)
-
-    await update.message.reply_text(
-        f"Voting started for {target.mention_html()}",
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
+    if handler:
+        await handler(update, session)
+    else:
+        await update.message.reply_text("Internal error.")
     return None
 
 

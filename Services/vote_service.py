@@ -21,13 +21,13 @@ class VoteService:
             .first()
         )
         if existing:
-            return existing, False
+            return existing, "already_open"
 
         session = VoteSession(chat_id=chat_id, target_user_id=target_user_id)
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)
-        return session, True
+        return session, "created"
 
     def cast_vote(self, session_id, voter_id, vote_type: str):
         session = self.db.query(VoteSession).filter_by(id=session_id).first()
