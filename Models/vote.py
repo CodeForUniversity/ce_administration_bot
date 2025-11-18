@@ -13,7 +13,6 @@ class Vote(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("vote_sessions.id"), nullable=False)
     voter_id = Column(Integer, nullable=False)
-    target_id = Column(Integer, nullable=False)
     vote_type = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 

@@ -3,6 +3,7 @@ from Models.vote_session import VoteSession
 from Models.vote import Vote
 from Models.UserPunishment import UserPunishment
 from datetime import datetime, timedelta, time, timezone
+from Utils.helper import get_vote_counts
 import zoneinfo
 
 VOTE_THRESHOLD = 20
@@ -28,7 +29,7 @@ class VoteService:
         self.db.refresh(session)
         return session, True
 
-    def cast_vote(self, session_id, voter_id, target_id, vote_type: str):
+    def cast_vote(self, session_id, voter_id, vote_type: str):
         session = self.db.query(VoteSession).filter_by(id=session_id).first()
         if not session:
             return None, "no_session"
@@ -47,9 +48,9 @@ class VoteService:
             .first()
         )
         if already:
-            return session, "duplicate"
+            return "duplicate"
 
-        vote = Vote(session_id=session_id, voter_id=voter_id, target_id=target_id, vote_type=vote_type)
+        vote = Vote(session_id=session_id, voter_id=voter_id, vote_type=vote_type)
         self.db.add(vote)
         self.db.commit()
 
@@ -59,9 +60,9 @@ class VoteService:
         if (yes_count - no_count) >= VOTE_THRESHOLD:
             session.status = "completed"
             self.db.commit()
-            return session, "completed"
+            return "completed"
 
-        return session, "voted"
+        return "voted"
 
     def compute_ban_until(self):
         IRAN = zoneinfo.ZoneInfo("Asia/Tehran")
@@ -87,3 +88,6 @@ class VoteService:
         self.db.commit()
 
         return until
+
+    def get_counts(self, session_id):
+        return get_vote_counts(SessionLocal(), session_id)
