@@ -3,16 +3,16 @@ from Models.vote_session import VoteSession
 from Models.vote import Vote
 from Models.UserPunishment import UserPunishment
 from datetime import datetime, timedelta, time, timezone
-from Utils.helper import get_vote_counts
 import zoneinfo
 
 VOTE_THRESHOLD = 20
-VOTE_PERCENTAGE = 60
 SESSION_LIFETIME = timedelta(hours=24)
+
 
 class VoteService:
     def __init__(self):
         self.db = SessionLocal()
+        self.IRAN_TZ = zoneinfo.ZoneInfo("Asia/Tehran")
 
     def start_session(self, chat_id, target_user_id):
         existing = (
@@ -32,62 +32,70 @@ class VoteService:
     def cast_vote(self, session_id, voter_id, vote_type: str):
         session = self.db.query(VoteSession).filter_by(id=session_id).first()
         if not session:
-            return None, "no_session"
+            return "no_session"
 
         if session.status != "open":
-            return None, "closed"
+            return "closed"
 
         if datetime.utcnow() - session.start_time > SESSION_LIFETIME:
             session.status = "expired"
             self.db.commit()
-            return None, "expired"
+            return "expired"
 
-        already = (
-            self.db.query(Vote)
-            .filter_by(session_id=session_id, voter_id=voter_id)
-            .first()
-        )
-        if already:
+        if self.has_already_voted(session_id, voter_id):
             return "duplicate"
 
         vote = Vote(session_id=session_id, voter_id=voter_id, vote_type=vote_type)
         self.db.add(vote)
         self.db.commit()
 
-        yes_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="yes").count()
-        no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
-
-        if (yes_count - no_count) >= VOTE_THRESHOLD:
+        yes, no = self.get_counts(session_id)
+        if (yes - no) >= VOTE_THRESHOLD:
             session.status = "completed"
             self.db.commit()
             return "completed"
 
         return "voted"
 
+    def has_already_voted(self, session_id: int, voter_id: int) -> bool:
+        return bool(
+            self.db.query(Vote)
+            .filter_by(session_id=session_id, voter_id=voter_id)
+            .first()
+        )
+
+    def get_counts(self, session_id: int):
+
+        yes_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="yes").count()
+        no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
+        return yes_count, no_count
+
+    # -------------------- User Punishment --------------------
     def compute_ban_until(self):
-        IRAN = zoneinfo.ZoneInfo("Asia/Tehran")
 
-        now_ir = datetime.now(IRAN)
+        now_ir = datetime.now(self.IRAN_TZ)
         tomorrow_date = now_ir.date() + timedelta(days=1)
-
-        ban_ir = datetime.combine(tomorrow_date, time(3, 30), tzinfo=IRAN)
-
+        ban_ir = datetime.combine(tomorrow_date, time(3, 30), tzinfo=self.IRAN_TZ)
         return ban_ir.astimezone(timezone.utc)
 
-    def mute_user(self, target_user_id, chat_id):
+    def mute_user(self, target_user_id: int, chat_id: int):
+
         until = self.compute_ban_until()
 
         punish = self.db.query(UserPunishment).filter_by(user_id=target_user_id, chat_id=chat_id).first()
         if not punish:
-            punish = UserPunishment(user_id=target_user_id, chat_id=chat_id, ban_count=1, is_muted=True, mute_until=until)
+            punish = UserPunishment(
+                user_id=target_user_id,
+                chat_id=chat_id,
+                ban_count=1,
+                is_muted=True,
+                mute_until=until
+            )
             self.db.add(punish)
         else:
             punish.ban_count += 1
             punish.is_muted = True
             punish.mute_until = until
+
         self.db.commit()
-
         return until
-
-    def get_counts(self, session_id):
-        return get_vote_counts(SessionLocal(), session_id)
