@@ -5,7 +5,7 @@ from Models.UserPunishment import UserPunishment
 from datetime import datetime, timedelta, time, timezone
 import zoneinfo
 
-VOTE_THRESHOLD = 1
+VOTE_THRESHOLD = 15
 SESSION_LIFETIME = timedelta(hours=24)
 
 
@@ -66,14 +66,17 @@ class VoteService:
         self.db.add(vote)
         self.db.commit()
 
-        yes, no = self.get_counts(session_id)
-        if (yes - no) >= VOTE_THRESHOLD:
+
+        if self.does_reach_enough_votes(session_id):
             session.status = "completed"
             self.db.commit()
             self.mute_user(session_id)
             return "completed"
 
         return "voted"
+    def does_reach_enough_votes(self, session_id: int) -> bool:
+        yes, no = self.get_counts(session_id)
+        return (yes - no >= VOTE_THRESHOLD) and ((no * 2) < yes)
 
     def has_already_voted(self, session_id: int, voter_id: int) -> bool:
         return bool(
