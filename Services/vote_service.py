@@ -5,7 +5,7 @@ from Models.UserPunishment import UserPunishment
 from datetime import datetime, timedelta, time, timezone
 import zoneinfo
 
-VOTE_THRESHOLD = 20
+VOTE_THRESHOLD = 1
 SESSION_LIFETIME = timedelta(hours=24)
 
 
@@ -70,6 +70,7 @@ class VoteService:
         if (yes - no) >= VOTE_THRESHOLD:
             session.status = "completed"
             self.db.commit()
+            self.mute_user(session_id)
             return "completed"
 
         return "voted"
@@ -87,23 +88,19 @@ class VoteService:
         no_count = self.db.query(Vote).filter_by(session_id=session_id, vote_type="no").count()
         return yes_count, no_count
 
-    # -------------------- User Punishment --------------------
-    def compute_ban_until(self):
-
-        now_ir = datetime.now(self.IRAN_TZ)
-        tomorrow_date = now_ir.date() + timedelta(days=1)
-        ban_ir = datetime.combine(tomorrow_date, time(3, 30), tzinfo=self.IRAN_TZ)
-        return ban_ir.astimezone(timezone.utc)
-
-    def mute_user(self, target_user_id: int, chat_id: int):
-
+    def mute_user(self, session_id: int):
+        session = self.db.query(VoteSession).filter_by(id=session_id).first()
         until = self.compute_ban_until()
 
-        punish = self.db.query(UserPunishment).filter_by(user_id=target_user_id, chat_id=chat_id).first()
+        punish = self.db.query(UserPunishment).filter_by(
+            user_id=session.target_user_id,
+            chat_id=session.chat_id
+        ).first()
+
         if not punish:
             punish = UserPunishment(
-                user_id=target_user_id,
-                chat_id=chat_id,
+                user_id=session.target_user_id,
+                chat_id=session.chat_id,
                 ban_count=1,
                 is_muted=True,
                 mute_until=until
@@ -115,4 +112,12 @@ class VoteService:
             punish.mute_until = until
 
         self.db.commit()
-        return until
+
+        return session.chat_id, session.target_user_id, until
+
+    def compute_ban_until(self):
+
+        now_ir = datetime.now(self.IRAN_TZ)
+        tomorrow_date = now_ir.date() + timedelta(days=1)
+        ban_ir = datetime.combine(tomorrow_date, time(3, 30), tzinfo=self.IRAN_TZ)
+        return ban_ir.astimezone(timezone.utc)
