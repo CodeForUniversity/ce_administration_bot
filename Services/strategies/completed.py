@@ -14,6 +14,6 @@ class CompletedStrategy(BaseStrategy):
             permissions=ChatPermissions(can_send_messages=False),
             until_date=until
         )
-        await query.edit_message_text(f"User muted until {until}.")
+        await query.edit_message_text(f"User muted until {until.strftime("%Y-%m-%d")} 🔇.")
 
 
